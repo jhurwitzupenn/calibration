@@ -1,0 +1,5 @@
+/home/jordan/research/apriltags/pod-build/custom/CMakeFiles/apriltag_image_detector.dir
+/home/jordan/research/apriltags/pod-build/CMakeFiles/apriltags.dir
+/home/jordan/research/apriltags/pod-build/example/CMakeFiles/apriltags_demo.dir
+/home/jordan/research/apriltags/pod-build/example/CMakeFiles/imu.dir
+/home/jordan/research/apriltags/pod-build/CMakeFiles/tmp.dir
