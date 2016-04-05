@@ -36,18 +36,25 @@ for i = 1:numCells
     htHhcArray(i) = num2cell(bbHhtArray{i} \ bbHhcArray{i} , [1 2]);
 end
 
+baselineT = htHhcArray{5}(1:3, 4);
+
 avgT = zeros(3,1);
 avgR = zeros(3,3);
 figure
 hold on
+skipped = 0
 for i = 1:numCells
     t = htHhcArray{i}(1:3, 4);
     R = htHhcArray{i}(1:3, 1:3);
+    if norm(t - baselineT) > .03
+        skipped = skipped + 1;
+        continue
+    end
     avgT = avgT + t;
     avgR = avgR + logm(R);
-    mArrow3(t, t + R(:,3) * .1, 'color', 'red', 'stemWidth', 0.0002); 
+    mArrow3(t, t + R(:,1) * .1, 'color', 'red', 'stemWidth', 0.0002); 
 end
 
-avgT = avgT / numCells
-avgR = expm(avgR / numCells)
-mArrow3(avgT, avgT + avgR(:,3) * .1, 'color', 'blue', 'stemWidth', 0.0002); 
+avgT = avgT / (numCells - skipped)
+avgR = expm(avgR / (numCells - skipped))
+mArrow3(avgT, avgT + avgR(:,1) * .1, 'color', 'blue', 'stemWidth', 0.0002); 

@@ -40,17 +40,21 @@ for i in xrange(numTransformations):
 avgT = np.zeros([3, 1])
 avgR = np.zeros([3, 3])
 
+baselineT = htHhcs[0:3, 3, 4].reshape(3, 1)
+skipped = 0
 for i in xrange(numTransformations):
+    t = htHhcs[0:3, 3, i].reshape(3, 1)
+    if np.linalg.norm(baselineT - t) > .03:
+        skipped += 1
+        continue
     avgT += htHhcs[0:3, 3, i].reshape(3, 1)
     avgR += htHhcs[0:3, 0:3, i]
 
-avgT = avgT / numTransformations
-avgR = avgR / numTransformations
+avgT = avgT / (numTransformations - skipped)
+avgR = avgR / (numTransformations - skipped)
+
+u, s, v = np.linalg.svd(avgR)
+avgR = np.dot(u, v)
 
 print avgT
 print avgR
-# for i = 1:numCells
-#     t = htHhcArray{i}(1:3, 4);
-#     R = htHhcArray{i}(1:3, 3);
-#     mArrow3(t, t + R * .1, 'color', 'red', 'stemWidth', 0.0002);
-# end
