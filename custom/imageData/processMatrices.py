@@ -58,3 +58,8 @@ avgR = np.dot(u, v)
 
 print avgT
 print avgR
+
+f = open('transformation.txt', 'w')
+np.savetxt(f, avgT, newline='\n')
+f.write('----------------------\n')
+np.savetxt(f, avgR, newline='\n')
