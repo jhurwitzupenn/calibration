@@ -1,40 +1,33 @@
-import sys
 import numpy as np
-import scipy as sp
 
-hcValuesSerial = np.loadtxt('leftHandCamera.txt')
-bbValuesSerial = np.loadtxt('bumblebee.txt')
+bbetData = np.loadtxt('bb23.txt', delimiter=',')
+bbhtData = np.loadtxt('bb21.txt', delimiter=',')
+hcetData = np.loadtxt('hc23.txt', delimiter=',')
 
-if 2 * len(hcValuesSerial) != len(bbValuesSerial):
-    sys.exit('Some tags were not detected. Please curate photos.')
+bbetIds = bbetData[:, 0]
+bbhtIds = bbhtData[:, 0]
+hcetIds = hcetData[:, 0]
 
-numTransformations = len(hcValuesSerial) / 16
+validIds = np.intersect1d(bbetIds, np.intersect1d(bbhtIds, hcetIds))
+bbetValidIndices = np.in1d(bbetIds, validIds)
+bbhtValidIndices = np.in1d(bbhtIds, validIds)
+hcetValidIndices = np.in1d(hcetIds, validIds)
 
-hcHets = np.zeros([4, 4, numTransformations])
-bbHhts = np.zeros([4, 4, numTransformations])
-bbHets = np.zeros([4, 4, numTransformations])
+bbetData = bbetData[bbetValidIndices, 1:]
+bbhtData = bbhtData[bbhtValidIndices, 1:]
+hcetData = hcetData[hcetValidIndices, 1:]
 
-j = 0
-for i in xrange(0, len(hcValuesSerial), 16):
-    hcHets[:, :, j] = np.reshape(hcValuesSerial[i:i + 16], (4, 4)).T
-    j += 1
+numTransforms = len(validIds)
+bbHets = np.reshape(bbetData.T, (4, 4, -1), 3)
+bbHhts = np.reshape(bbhtData.T, (4, 4, -1), 3)
+hcHets = np.reshape(hcetData.T, (4, 4, -1), 3)
 
-j = 0
-for i in xrange(0, len(bbValuesSerial), 32):
-    bbHhts[:, :, j] = np.reshape(bbValuesSerial[i:i + 16], (4, 4)).T
-    j += 1
-
-j = 0
-for i in xrange(16, len(bbValuesSerial), 32):
-    bbHets[:, :, j] = np.reshape(bbValuesSerial[i:i + 16], (4, 4)).T
-    j += 1
-
-bbHhcs = np.zeros([4, 4, numTransformations])
-for i in xrange(numTransformations):
+bbHhcs = np.zeros([4, 4, numTransforms])
+for i in xrange(numTransforms):
     bbHhcs[:, :, i] = np.dot(bbHets[:, :, i], np.linalg.inv(hcHets[:, :, i]))
 
-htHhcs = np.zeros([4, 4, numTransformations])
-for i in xrange(numTransformations):
+htHhcs = np.zeros([4, 4, numTransforms])
+for i in xrange(numTransforms):
     htHhcs[:, :, i] = np.dot(np.linalg.inv(bbHhts[:, :, i]), bbHhcs[:, :, i])
 
 avgT = np.zeros([3, 1])
@@ -42,7 +35,7 @@ avgR = np.zeros([3, 3])
 
 baselineT = htHhcs[0:3, 3, 4].reshape(3, 1)
 skipped = 0
-for i in xrange(numTransformations):
+for i in xrange(numTransforms):
     t = htHhcs[0:3, 3, i].reshape(3, 1)
     if np.linalg.norm(baselineT - t) > .03:
         skipped += 1
@@ -50,8 +43,8 @@ for i in xrange(numTransformations):
     avgT += htHhcs[0:3, 3, i].reshape(3, 1)
     avgR += htHhcs[0:3, 0:3, i]
 
-avgT = avgT / (numTransformations - skipped)
-avgR = avgR / (numTransformations - skipped)
+avgT = avgT / (numTransforms - skipped)
+avgR = avgR / (numTransforms - skipped)
 
 u, s, v = np.linalg.svd(avgR)
 avgR = np.dot(u, v)

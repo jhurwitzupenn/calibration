@@ -27,17 +27,18 @@ const string usage = "\n"
   "  apriltag_image_detector [OPTION...] [IMG1 [IMG2...]]\n"
   "\n"
   "Options:\n"
-  "  -h  -?          Show help options\n"
-  "  -d              Disable graphics\n"
+  "  -h -?          Show help options\n"
+  "  -d              Enable graphics\n"
   "  -b              Bumblebee camera\n"
-  "  -l              Left hand camera\n"
+  "  -g              hand camera\n"
   "  -t              Timing of tag extraction\n"
   "  -C <bbxhh>      Tag family (default 36h11)\n"
   "  -F <fx>         Focal length in pixels\n"
-  "  -S <size>       Tag size (square black frame) in meters\n"
+  "  -S <size>       Target tag size (square black frame) in meters\n"
   "  -E <exposure>   Manually set camera exposure (default auto; range 0-10000)\n"
   "  -G <gain>       Manually set camera gain (default auto; range 0-255)\n"
   "  -B <brightness> Manually set the camera brightness (default 128; range 0-255)\n"
+  "  -I <ID>         Manually set the ID of the target tag\n"
   "\n";
 
 const string intro = "\n"
@@ -129,11 +130,15 @@ class ImageProcessor {
 
   int m_width; // image size in pixels
   int m_height;
-  double m_tagSize; // April tag side length in meters of square black frame
   double m_fx; // camera focal length in pixels
   double m_fy;
   double m_px; // camera principal point
   double m_py;
+
+  double m_targetTagSize; // April tag side length in meters of square black frame
+  double m_externalTagSize;
+  int m_targetTagID; // The ID of the tag to be detected
+  int m_externalTagID; // The ID of the tag to be detected
 
   list<string> m_imgNames;
   string m_camera;
@@ -155,7 +160,10 @@ public:
 
     m_width(640),
     m_height(480),
-    m_tagSize(0.163),
+    m_targetTagID(0),
+    m_targetTagSize(.08),
+    m_externalTagID(23),
+    m_externalTagSize(0.130),
     m_fx(600),
     m_fy(600),
     m_px(m_width/2),
@@ -186,7 +194,7 @@ public:
   // parse command line options to change default behavior
   void parseOptions(int argc, char* argv[]) {
     int c;
-    while ((c = getopt(argc, argv, ":h?dbltC:F:H:S:W:E:G:B:")) != -1) {
+    while ((c = getopt(argc, argv, ":h?dbgtC:F:H:S:W:E:G:B:I:")) != -1) {
       // Each option character has to be in the string in getopt();
       // the first colon changes the error character from '?' to ':';
       // a colon after an option means that there is an extra
@@ -208,15 +216,15 @@ public:
         m_fy = 811.857711829874;
         m_px = 515.7504920959473;
         m_py = 403.7249565124512;
-        m_camera = "bumblebee";
+        m_camera = "bb";
         break;
       // Using the left hand camera
-      case 'l':
+      case 'g':
         m_fx = 406.91154295;
         m_fy = 406.91154295;
         m_px = 639.265369663;
         m_py = 393.084656577;
-        m_camera = "leftHandCamera";
+        m_camera = "hc";
         break;
       // Display the time of extractions
       case 't':
@@ -230,7 +238,7 @@ public:
         m_fy = m_fx;
         break;
       case 'S':
-        m_tagSize = atof(optarg);
+        m_targetTagSize = atof(optarg);
         break;
       case 'W':
         m_width = atoi(optarg);
@@ -257,6 +265,9 @@ public:
 #endif
         m_brightness = atoi(optarg);
         break;
+      case 'I':
+        m_targetTagID = atoi(optarg);
+        break;
       case ':': // unknown option, from getopt
         cout << intro;
         cout << usage;
@@ -276,34 +287,30 @@ public:
     m_tagDetector = new AprilTags::TagDetector(m_tagCodes);
   }
 
-  void write_transform(ofstream& file, AprilTags::TagDetection& detection, double dt) const {
+  void write_transform(int numImage, ofstream& etFile, ofstream& ttFile, AprilTags::TagDetection& detection, double dt) const {
     // recovering the relative pose of a tag:
 
     // NOTE: for this to be accurate, it is necessary to use the
     // actual camera parameters here as well as the actual tag size
-    // (m_fx, m_fy, m_px, m_py, m_tagSize)
-
     Eigen::Matrix4d transformation;
-    if (detection.id == 21) {
-        cout << m_fx << endl;
-        cout << m_fy << endl;
-        cout << m_px << endl;
-        cout << m_py << endl;
-        transformation = detection.getRelativeTransform(.08, m_fx, m_fy, m_px, m_py);
-    } else {
-        cout << m_fx << endl;
-        cout << m_fy << endl;
-        cout << m_px << endl;
-        cout << m_py << endl;
-        cout << m_tagSize << endl;
-        transformation = detection.getRelativeTransform(m_tagSize, m_fx, m_fy, m_px, m_py);
-    }
-    for (int i = 0; i < transformation.size(); i++) {
-            file << *(transformation.data() + i) << endl;
+    if (detection.id == m_externalTagID) {
+        transformation = detection.getRelativeTransform(m_externalTagSize, m_fx, m_fy, m_px, m_py);
+        etFile << numImage;
+        for (int i = 0; i < transformation.size(); i++) {
+            etFile << "," << *(transformation.data() + i);
+        }
+        etFile << endl;
+    } else if (detection.id == m_targetTagID && ttFile.is_open()) {
+        transformation = detection.getRelativeTransform(m_targetTagSize, m_fx, m_fy, m_px, m_py);
+        ttFile << numImage;
+        for (int i = 0; i < transformation.size(); i++) {
+            ttFile  << "," << *(transformation.data() + i);
+        }
+        ttFile << endl;
     }
   }
 
-  void processImage(ofstream& file, cv::Mat& image, cv::Mat& image_gray, string imageName) {
+  void processImage(int numImage, ofstream& etFile, ofstream& ttFile, cv::Mat& image, cv::Mat& image_gray, string imageName) {
     // detect April tags (requires a gray scale image)
     cv::cvtColor(image, image_gray, CV_BGR2GRAY);
 
@@ -314,6 +321,7 @@ public:
     if (m_timing) {
       t0 = tic();
     }
+
     detections = m_tagDetector->extractTags(image_gray);
     if (m_timing) {
         dt = tic() - t0;
@@ -321,8 +329,7 @@ public:
     }
 
     for (int i=0; i<detections.size(); i++) {
-        cout << "Writing TagID: " << detections[i].id << endl;
-        write_transform(file, detections[i], dt);
+        write_transform(numImage, etFile, ttFile, detections[i], dt);
     }
 
     // show the current image including any detections
@@ -340,16 +347,32 @@ public:
     cv::Mat image;
     cv::Mat image_gray;
 
-    string fileName = m_camera + ".txt";
-    ofstream file(fileName.c_str());
+    ofstream ttFile;
+    if (m_targetTagID != 0) {
+        char ttFileName [10];
+        sprintf(ttFileName, "%s%d.txt", m_camera.c_str(), m_targetTagID);
+        ttFile.open(ttFileName);
+        cout << "Detecting Target TagID: " << m_targetTagID << endl;
+    }
+
+    cout << "Detecting External TagID: " << m_externalTagID << endl;
+    char etFileName [10];
+    sprintf(etFileName, "%s%d.txt", m_camera.c_str(), m_externalTagID);
+    ofstream etFile(etFileName);
+
+    int numImage = 0;
     for (list<string>::iterator it=m_imgNames.begin(); it!=m_imgNames.end(); it++) {
         image = cv::imread(*it); // load image with opencv
-        processImage(file, image, image_gray, *it);
+        processImage(numImage, etFile, ttFile, image, image_gray, *it);
         if (m_draw) {
             while (cv::waitKey(100) == -1) {}
         }
+        numImage = numImage + 1;
     }
-    file.close();
+    etFile.close();
+    if (ttFile.is_open()) {
+        ttFile.close();
+    }
   }
 
 }; // ImageProcessor
