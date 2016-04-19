@@ -6,22 +6,6 @@
 
 #IncludeRegexTransform: 
 
-/home/jordan/research/apriltags/example/Serial.cpp
-fcntl.h
--
-termios.h
--
-stdlib.h
--
-iostream
--
-sstream
--
-unistd.h
--
-Serial.h
-/home/jordan/research/apriltags/example/Serial.h
-
 /home/jordan/research/apriltags/example/Serial.h
 string
 -
