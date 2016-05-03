@@ -39,7 +39,7 @@ avgR = zeros(3,3);
 figure
 hold on
 skipped = 0;
-for i = 1:numCells
+for i = 1:numTransforms
     t = htHhcs(1:3, 4, i);
     R = htHhcs(1:3, 1:3, i);
     if norm(t - baselineT) > .03

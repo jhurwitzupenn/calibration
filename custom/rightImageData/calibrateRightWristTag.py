@@ -1,8 +1,9 @@
 import numpy as np
-import Quaternion as Q
+from tf import transformations
 
+tagID = 124
 bbetData = np.loadtxt('bb23.txt', delimiter=',')
-bbhtData = np.loadtxt('bb125.txt', delimiter=',')
+bbhtData = np.loadtxt('bb{0}.txt'.format(tagID), delimiter=',')
 hcetData = np.loadtxt('hc23.txt', delimiter=',')
 rotations = np.loadtxt('rotations.txt', delimiter=',')
 translations = np.loadtxt('translations.txt', delimiter=',')
@@ -32,38 +33,44 @@ numTransforms = len(validIds)
 bbHets = np.reshape(bbetData.T, (4, 4, -1), 3)
 bbHhts = np.reshape(bbhtData.T, (4, 4, -1), 3)
 hcHets = np.reshape(hcetData.T, (4, 4, -1), 3)
+faHhcs = np.zeros([4, 4, numTransforms])
 
-bbHhcs = np.zeros([4, 4, numTransforms])
 for i in xrange(numTransforms):
-    bbHhcs[:, :, i] = np.dot(bbHets[:, :, i], np.linalg.inv(hcHets[:, :, i]))
+    rotation = transformations.quaternion_matrix(rotations[i, :])
+    translation = translations[i, :]
+    rotation[0:3, 3] = translation
+    faHhcs[:, :, i] = rotation
 
-htHhcs = np.zeros([4, 4, numTransforms])
+htHfas = np.zeros([4, 4, numTransforms])
 for i in xrange(numTransforms):
-    htHhcs[:, :, i] = np.dot(np.linalg.inv(bbHhts[:, :, i]), bbHhcs[:, :, i])
+    htHfas[:, :, i] = np.dot(np.linalg.inv(bbHhts[:, :, i]),
+                             np.dot(bbHets[:, :, i],
+                                    np.dot(np.linalg.inv(hcHets[:, :, i]),
+                                           np.linalg.inv(faHhcs[:, :, i]))))
 
 avgT = np.zeros([3, 1])
 avgR = np.zeros([3, 3])
 
-baselineT = htHhcs[0:3, 3, 4].reshape(3, 1)
-skipped = 0
 for i in xrange(numTransforms):
-    t = htHhcs[0:3, 3, i].reshape(3, 1)
-    if np.linalg.norm(baselineT - t) > .03:
-        skipped += 1
-        continue
-    avgT += htHhcs[0:3, 3, i].reshape(3, 1)
-    avgR += htHhcs[0:3, 0:3, i]
+    t = htHfas[0:3, 3, i].reshape(3, 1)
+    avgT += t
+    avgR += htHfas[0:3, 0:3, i]
 
-avgT = avgT / (numTransforms - skipped)
-avgR = avgR / (numTransforms - skipped)
+avgT = avgT / (numTransforms)
+avgR = avgR / (numTransforms)
 
 u, s, v = np.linalg.svd(avgR)
 avgR = np.dot(u, v)
 
-print avgT
-print avgR
+paddedR = np.zeros((4, 4))
+paddedR[3, 3] = 1
+paddedR[0:3, 0:3] = avgR
+quat = transformations.quaternion_from_matrix(paddedR)
 
-f = open('calibration.txt', 'w')
+print avgT
+print quat
+
+f = open('rightWristCalibration{0}.txt'.format(tagID), 'w')
 np.savetxt(f, avgT, newline='\n')
 f.write('----------------------\n')
-np.savetxt(f, avgR, newline='\n')
+np.savetxt(f, quat, newline='\n')

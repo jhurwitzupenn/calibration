@@ -31,6 +31,7 @@ const string usage = "\n"
   "  -d              Enable graphics\n"
   "  -b              Bumblebee camera\n"
   "  -g              hand camera\n"
+  "  -j              head camera\n"
   "  -t              Timing of tag extraction\n"
   "  -C <bbxhh>      Tag family (default 36h11)\n"
   "  -F <fx>         Focal length in pixels\n"
@@ -163,7 +164,7 @@ public:
     m_targetTagID(0),
     m_targetTagSize(.08),
     m_externalTagID(23),
-    m_externalTagSize(0.130),
+    m_externalTagSize(0.162),
     m_fx(600),
     m_fy(600),
     m_px(m_width/2),
@@ -194,7 +195,7 @@ public:
   // parse command line options to change default behavior
   void parseOptions(int argc, char* argv[]) {
     int c;
-    while ((c = getopt(argc, argv, ":h?dbgtC:F:H:S:W:E:G:B:I:")) != -1) {
+    while ((c = getopt(argc, argv, ":h?dbgjtC:F:H:S:W:E:G:B:I:")) != -1) {
       // Each option character has to be in the string in getopt();
       // the first colon changes the error character from '?' to ':';
       // a colon after an option means that there is an extra
@@ -225,6 +226,13 @@ public:
         m_px = 639.265369663;
         m_py = 393.084656577;
         m_camera = "hc";
+        break;
+      case 'j':
+        m_fx = -400.9109712316352;
+        m_fy = -400.349173907485;
+        m_px = 714.8099130108861;
+        m_py = 387.0473510896936;
+        m_camera = "he";
         break;
       // Display the time of extractions
       case 't':
